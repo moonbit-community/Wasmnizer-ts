@@ -19,6 +19,13 @@ These benchmarks are based on some open source efforts to measure performance of
     ``` bash
     cd runtime-library
     ./build.sh
+    # if you are using macos, run
+    # ./build.sh -DWAMR_BUILD_PLATFORM=darwin -DWAMR_BUILD_TARGET=AARCH64
+    cd deps/wamr-gc/wamr-compiler
+    python3 -m venv env
+    source env/bin/activate.fish
+    cmake .. -DWAMR_BUILD_PLATFORM=darwin -DWAMR_BUILD_TARGET=AARCH64 -DWAMR_BUILD_WITH_CUSTOM_LLVM=1
+    make
     ```
 
 - quickjs
@@ -27,6 +34,12 @@ These benchmarks are based on some open source efforts to measure performance of
     cd runtime-library/deps/quickjs
     make
     export PATH=$(pwd):$PATH
+    ```
+
+- moonbit
+
+    ``` bash
+    /bin/bash -c "$(curl -fsSL https://cli.moonbitlang.cn/mac_m1_moon_setup.sh)"
     ```
 
 2. execute `run_benchmark.js` script
@@ -55,3 +68,28 @@ if (arr[0] !== minimum || arr[size - 1] !== maxinum) {
 ```
 
 > Note: Currently Wasmnizer-ts is under functionality development, the performance optimization is not on high priority.
+
+---
+
+## MooBit Benchmark Result
+
+```
+node run_benchmark.js --benchmarks=mandelbrot,mandelbrot_i32,fibonacci,binarytrees_class,binarytrees_interface,nbody_class,nbody_interface --runtimes=wamr-interp,wamr-aot,moonbit-wamr-interp,moonbit-wamr-aot --warmup=3 --times=10
+```
+
+result on Apple M3 Max, 16 (12 performance and 4 efficiency), 128GB:
+
+```
+====================== results ======================
+┌─────────┬─────────────────────────┬─────────────┬──────────────┬─────────────┬────────────┬────────────────┬─────────────┐
+│ (index) │ benchmark               │ interp      │ aot          │ mbt interp  │ mbt aot    │ mbt/ts(interp) │ mbt/ts(aot) │
+├─────────┼─────────────────────────┼─────────────┼──────────────┼─────────────┼────────────┼────────────────┼─────────────┤
+│ 0       │ 'binarytrees_class'     │ '403.04ms'  │ '161.04ms'   │ '306.96ms'  │ '154.60ms' │ '0.76'         │ '0.96'      │
+│ 1       │ 'binarytrees_interface' │ '2113.18ms' │ '598.02ms'   │ '311.12ms'  │ '157.24ms' │ '0.15'         │ '0.26'      │
+│ 2       │ 'fibonacci'             │ '515.42ms'  │ '115.79ms'   │ '538.94ms'  │ '103.65ms' │ '1.05'         │ '0.90'      │
+│ 3       │ 'mandelbrot'            │ '2141.25ms' │ '481.71ms'   │ '2057.80ms' │ '470.01ms' │ '0.96'         │ '0.98'      │
+│ 4       │ 'mandelbrot_i32'        │ '2196.66ms' │ '30444.61ms' │ '2199.79ms' │ '498.73ms' │ '1.00'         │ '0.02'      │
+│ 5       │ 'nbody_class'           │ '1321.58ms' │ '77.50ms'    │ '1182.86ms' │            │ '0.90'         │             │
+│ 6       │ 'nbody_interface'       │ '4815.03ms' │              │ '1185.96ms' │            │ '0.25'         │             │
+└─────────┴─────────────────────────┴─────────────┴──────────────┴─────────────┴────────────┴────────────────┴─────────────┘
+```

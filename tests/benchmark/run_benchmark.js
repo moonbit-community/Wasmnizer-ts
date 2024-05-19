@@ -17,6 +17,7 @@ const ts2wasm_script = path.join(benchmark_dir, '../../build/cli/ts2wasm.js');
 const iwasm_gc = path.join(benchmark_dir, '../../runtime-library/build/iwasm_gc');
 const default_qjs = path.join(benchmark_dir, '../../runtime-library/deps/quickjs/qjs');
 const wamrc = path.join(benchmark_dir, '../../runtime-library/deps/wamr-gc/wamr-compiler/build/wamrc');
+const nodewasm = path.join(benchmark_dir, '../../tools/validate/run_module/run_module_on_node.js')
 const optimize_level = 3;
 const validate_res_error = 'Validate result error';
 
@@ -102,11 +103,18 @@ let wamr_interp_times = [];
 let qjs_js_times = [];
 let wamr_aot_times = [];
 let v8_js_times = [];
+let v8_wasm_times = []
+let moonbit_wamr_interp_times = [];
+let moonbit_qjs_js_times = [];
+let moonbit_wamr_aot_times = [];
+let moonbit_v8_js_times = [];
+let moonbit_v8_wasm_times = []
 let prefixs = [];
 
 let benchmark_options = {
     'merkletrees': {
-        skip: true
+        // skip: true
+        wamr_option: [default_gc_size_option]
     },
     'mandelbrot': {
         wamr_option: [default_gc_size_option]
@@ -145,6 +153,7 @@ console.log(`\x1b[33m======================== running ========================\x
 function run_multiple_times(cmd) {
     let elapsed;
     let elapse_arr = [];
+    console.log(`\n\t${cmd}`)
 
     try {
         for (let i = 0; i < warm_up_times; i++) {
@@ -171,7 +180,7 @@ function run_multiple_times(cmd) {
         if (e.stdout) {
             console.log(`\x1b[31m${e.stdout.toString()}\x1b[0m`);
         }
-        process.exit(1);
+        return NaN
     }
 
     elapsed = elapse_arr.reduce((a, b) => a + b, 0) / elapse_arr.length;
@@ -207,7 +216,24 @@ for (let benchmark of benchmarks) {
 
     console.log(`Compiling ${prefix} benchmark:`);
     execSync(`node ${ts2wasm_script} ${filename} --opt ${optimize_level} --output ${prefix}.wasm > tmp.txt`);
-    execSync(`${wamrc} --enable-gc -o ${prefix}.aot ${prefix}.wasm > tmp.txt`);
+    execSync(`wasm-tools print ${prefix}.wasm -o ${prefix}.wat`)
+    execSync(`wasm-opt -all -O3 -o ${prefix}.wasm ${prefix}.wasm`)
+
+    // https://github.com/bytecodealliance/wasm-micro-runtime/issues/3164#issuecomment-1952034927
+    execSync(`${wamrc} --enable-gc --size-level=0 -o ${prefix}.aot ${prefix}.wasm > tmp.txt`);
+
+    execSync(`moon build --source-dir ${prefix} --target js > tmp.txt`)
+    execSync(`moon build --source-dir ${prefix} --target wasm-gc > tmp.txt`)
+    execSync(`moon build --source-dir ${prefix} --target wasm-gc --output-wat > tmp.txt`)
+    execSync(`wasm-opt -all -O3 ${prefix}/target/wasm-gc/release/build/lib/lib.wasm  -o ${prefix}/target/wasm-gc/release/build/lib/lib.wasm`)
+    // execSync(`wasm-tools print ${prefix}/target/wasm-gc/release/build/lib/lib-opt.wasm -o ${prefix}/target/wasm-gc/release/build/lib/lib-opt.wat`)
+
+    // aot for moonbit
+    execSync(`moon build --source-dir ${prefix} --target wasm-gc --output-wat > tmp.txt`)
+    execSync(`sed 's|moonbit\\.memory|memory|g' ${prefix}/target/wasm-gc/release/build/lib/lib.wat > ${prefix}/target/wasm-gc/release/build/lib/lib-aot.wat`)
+    execSync(`wasm-tools parse ${prefix}/target/wasm-gc/release/build/lib/lib-aot.wat -o ${prefix}/target/wasm-gc/release/build/lib/lib-aot.wasm`)
+
+    execSync(`${wamrc} --enable-gc --size-level=0 -o ${prefix}/target/wasm-gc/release/build/lib/lib.aot ${prefix}/target/wasm-gc/release/build/lib/lib-aot.wasm  > tmp.txt`);
 
     if (specified_runtimes && !specified_runtimes.includes('wamr-interp')) {
         console.log(`\x1b[33mSkip WAMR interpreter due to argument filter.\x1b[0m`);
@@ -226,6 +252,26 @@ for (let benchmark of benchmarks) {
         process.stdout.write(`WAMR AoT ... \t\t`);
         elapsed = run_multiple_times(`${iwasm_gc} ${collect_benchmark_options(benchmark_options[prefix]?.wamr_option)} -f main ${prefix}.aot`);
         wamr_aot_times.push(elapsed);
+        console.log(`${elapsed.toFixed(2)}ms`);
+    }
+
+    if (specified_runtimes && !specified_runtimes.includes('node-wasm')) {
+        console.log(`\x1b[33mSkip Node Wasm due to argument filter.\x1b[0m`);
+    }
+    else {
+        process.stdout.write(`Node Wasm ... \t\t`);
+        elapsed = run_multiple_times(`node ${nodewasm} -s -f main ${prefix}.wasm`);
+        v8_wasm_times.push(elapsed);
+        console.log(`${elapsed.toFixed(2)}ms`);
+    }
+
+    if (specified_runtimes && !specified_runtimes.includes('moonbit-node-wasm')) {
+        console.log(`\x1b[33mSkip MoonBit Node Wasm due to argument filter.\x1b[0m`);
+    }
+    else {
+        process.stdout.write(`MoonBit Node Wasm ... \t\t`);
+        elapsed = run_multiple_times(`node ${nodewasm} -s -f main ${prefix}/target/wasm-gc/release/build/lib/lib.wasm`);
+        moonbit_v8_wasm_times.push(elapsed);
         console.log(`${elapsed.toFixed(2)}ms`);
     }
 
@@ -249,6 +295,46 @@ for (let benchmark of benchmarks) {
         console.log(`${elapsed.toFixed(2)}ms`);
     }
 
+    if (specified_runtimes && !specified_runtimes.includes('moonbit-wamr-interp')) {
+        console.log(`\x1b[33mSkip MoonBit WAMR interpreter due to argument filter.\x1b[0m`);
+    }
+    else {
+        process.stdout.write(`MoonBit WAMR interpreter ... \t\t`);
+        elapsed = run_multiple_times(`${iwasm_gc} ${collect_benchmark_options(benchmark_options[prefix]?.wamr_option)} -f main ${prefix}/target/wasm-gc/release/build/lib/lib.wasm`);
+        moonbit_wamr_interp_times.push(elapsed);
+        console.log(`${elapsed.toFixed(2)}ms`);
+    }
+
+    if (specified_runtimes && !specified_runtimes.includes('moonbit-wamr-aot')) {
+        console.log(`\x1b[33mSkip Moonbit WAMR AoT due to argument filter.\x1b[0m`);
+    }
+    else {
+        process.stdout.write(`MoonBit WAMR AoT ... \t\t`);
+        elapsed = run_multiple_times(`${iwasm_gc} ${collect_benchmark_options(benchmark_options[prefix]?.wamr_option)} -f main ${prefix}/target/wasm-gc/release/build/lib/lib.aot`);
+        moonbit_wamr_aot_times.push(elapsed);
+        console.log(`${elapsed.toFixed(2)}ms`);
+    }
+
+    if (specified_runtimes && !specified_runtimes.includes('moonbit-qjs')) {
+        console.log(`\x1b[33mSkip MoonBit QuickJS due to argument filter.\x1b[0m`);
+    }
+    else {
+        process.stdout.write(`MoonBit QuickJS ... \t\t`);
+        elapsed = run_multiple_times(`${qjs} ${prefix}/target/js/release/build/main/main.js`);
+        moonbit_qjs_js_times.push(elapsed);
+        console.log(`${elapsed.toFixed(2)}ms`);
+    }
+
+    if (specified_runtimes && !specified_runtimes.includes('moonbit-node')) {
+        console.log(`\x1b[33mSkip MoonBit Node due to argument filter.\x1b[0m`);
+    }
+    else {
+        process.stdout.write(`MoonBit Node ... \t\t`);
+        elapsed = run_multiple_times(`${node_cmd} ${prefix}/target/js/release/build/main/main.js`);
+        moonbit_v8_js_times.push(elapsed);
+        console.log(`${elapsed.toFixed(2)}ms`);
+    }
+
     executed_benchmarks++;
 }
 
@@ -266,25 +352,85 @@ for (let i = 0; i < executed_benchmarks; i++) {
     let qjs_js_time = qjs_js_times[i];
     let wamr_aot_time = wamr_aot_times[i];
     let v8_js_time = v8_js_times[i];
+    let v8_wasm_time = v8_wasm_times[i]
+    let moonbit_wamr_interp_time = moonbit_wamr_interp_times[i];
+    let moonbit_qjs_js_time = moonbit_qjs_js_times[i];
+    let moonbit_wamr_aot_time = moonbit_wamr_aot_times[i];
+    let moonbit_v8_js_time = moonbit_v8_js_times[i];
+    let moonbit_v8_wasm_time = moonbit_v8_wasm_times[i]
 
     let r = {
         benchmark: prefixs[i]
     }
 
     if (wamr_interp_time) {
-        r['WAMR_interpreter'] = wamr_interp_time.toFixed(2) + 'ms';
+        r['interp'] = wamr_interp_time.toFixed(2) + 'ms';
     }
 
     if (wamr_aot_time) {
-        r['WAMR_aot'] = wamr_aot_time.toFixed(2) + 'ms';
+        r['aot'] = wamr_aot_time.toFixed(2) + 'ms';
     }
 
     if (qjs_js_time) {
-        r['QuickJS'] = qjs_js_time.toFixed(2) + 'ms';
+        r['qjs'] = qjs_js_time.toFixed(2) + 'ms';
     }
 
     if (v8_js_time) {
         r['Node'] = v8_js_time.toFixed(2) + 'ms';
+    }
+
+    if (v8_wasm_time) {
+      r['Node wasm'] = v8_wasm_time.toFixed(2) + 'ms'
+    }
+
+    if (moonbit_wamr_interp_time) {
+      r['mbt interp'] = moonbit_wamr_interp_time.toFixed(2) + 'ms'
+    }
+
+    if (moonbit_wamr_aot_time) {
+        r['mbt aot'] = moonbit_wamr_aot_time.toFixed(2) + 'ms';
+    }
+
+    if (moonbit_qjs_js_time) {
+      r['mbt qjs'] = moonbit_qjs_js_time.toFixed(2) + 'ms'
+    }
+
+    if (moonbit_v8_js_time) {
+        r['mbt node'] = moonbit_v8_js_time.toFixed(2) + 'ms';
+    }
+
+    if (moonbit_v8_wasm_time) {
+      r['mbt node wasm'] = moonbit_v8_wasm_time.toFixed(2) + 'ms'
+    }
+
+    if (wamr_interp_time && moonbit_wamr_interp_time) {
+        let ratio = moonbit_wamr_interp_time / wamr_interp_time
+        let formatted_result = ratio.toFixed(2);
+        r['mbt/ts(interp)'] = formatted_result;
+    }
+
+    if (wamr_aot_time && moonbit_wamr_aot_time) {
+        let ratio = moonbit_wamr_aot_time / wamr_aot_time
+        let formatted_result = ratio.toFixed(2);
+        r['mbt/ts(aot)'] = formatted_result;
+    }
+
+    if (qjs_js_time && moonbit_qjs_js_time) {
+        let ratio = moonbit_qjs_js_time / qjs_js_time;
+        let formatted_result = ratio.toFixed(2);
+        r['mbt/js(qjs)'] = formatted_result;
+    }
+
+    if (v8_wasm_time && moonbit_v8_wasm_time) {
+      let ratio = moonbit_v8_wasm_time / v8_wasm_time
+      let formatted_result = ratio.toFixed(2);
+      r['mbt/ts(node wasm)'] = formatted_result;
+    }
+
+    if (v8_js_time && moonbit_v8_js_time) {
+        let ratio = moonbit_v8_js_time / v8_js_time
+        let formatted_result = ratio.toFixed(2);
+        r['mbt/js(node)'] = formatted_result;
     }
 
     if (wamr_interp_time && qjs_js_time) {

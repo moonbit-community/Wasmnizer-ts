@@ -10,7 +10,7 @@ function main() {
     //console.log(`stretch tree of depth ${stretchDepth} check: ${checksum(stretchTree)}`)
     var longLivedTree = createTree(maxDepth);
     for (var depth = 4; depth <= maxDepth; depth += 2) {
-        var iterations = Math.pow(2, maxDepth) - depth + 4;
+        var iterations = (1 << maxDepth) - depth + 4;
         var sum = 0;
         for (var i = 0; i < iterations; i++) {
             var tree = createTree(depth);

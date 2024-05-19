@@ -35,9 +35,11 @@ WebAssembly.instantiate(wasmBuffer, importObject).then((wasmModule) => {
     const exports = wasmModule.instance.exports;
     setWasmMemory(exports.default);
 
-    const _start = exports._start;
+    const _start = exports._start ?? exports._entry;
     if (needCallStart || !funcName) {
+      if (_start) {
         _start();
+      }
     }
     if (!funcName) {
         return;

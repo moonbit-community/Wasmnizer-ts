@@ -25,7 +25,7 @@ export function main() {
     const longLivedTree = createTree(maxDepth);
 
     for (let depth = 4; depth <= maxDepth; depth += 2) {
-        const iterations: number = Math.pow(2, maxDepth) - depth + 4;
+        const iterations: number = (1 << maxDepth) - depth + 4;
         let sum = 0;
         for (let i = 0; i < iterations; i++) {
             const tree = createTree(depth);

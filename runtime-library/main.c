@@ -844,7 +844,10 @@ main(int argc, char *argv[])
 
     start_func = wasm_runtime_lookup_function(wasm_module_inst, "_entry");
     if (!start_func) {
-        printf("%s\n", "Missing '_entry' function in wasm module\n");
+        start_func = wasm_runtime_lookup_function(wasm_module_inst, "_start");
+    }
+    if (!start_func) {
+        printf("%s\n", "Missing '_entry' or '_start' function in wasm module\n");
         goto fail4;
     }
     if (!wasm_runtime_call_wasm(exec_env, start_func, 0, NULL)) {

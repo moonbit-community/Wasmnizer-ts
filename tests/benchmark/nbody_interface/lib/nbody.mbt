@@ -73,7 +73,7 @@ fn sun()-> NBody {
   };
 }
 
-let bodies: Array[NBody] = [sun(), jupiter(), saturn(), uranus(), neptune()];
+let bodies: FixedArray[NBody] = [sun(), jupiter(), saturn(), uranus(), neptune()];
 
 fn offsetMomentum() -> Unit {
     let mut px = 0.0;

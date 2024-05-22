@@ -37,7 +37,7 @@ fn scale(
 }
 
 fn mandelbrot(
-  data: Array[Int],
+  data: FixedArray[Int],
   height: Int,
   width: Int,
   max_iterations: Int,
@@ -66,7 +66,7 @@ fn mandelbrot(
 pub fn entry() -> Unit {
   let width = 1200;
   let height = 800;
-  let data = Array::make(width * height * 4, 0);
+  let data = FixedArray::make(width * height * 4, 0);
   mandelbrot(
     data,
     height,

@@ -1,7 +1,9 @@
 {
   "link": {
     "wasm-gc": {
-      "exports": ["entry:main"]
+      "exports": ["entry:main"],
+      "export-memory-name": "memory",
+      "flags": ["-no-block-params"]
     }
   }
 }

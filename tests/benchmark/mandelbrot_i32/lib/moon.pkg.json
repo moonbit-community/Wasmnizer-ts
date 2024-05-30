@@ -4,6 +4,11 @@
       "exports": ["entry:main"],
       "export-memory-name": "memory",
       "flags": ["-no-block-params"]
+    },
+    "wasm": {
+      "exports": ["entry:main"],
+      "export-memory-name": "memory",
+      "flags": ["-rc", "-no-block-params"]
     }
   }
 }
